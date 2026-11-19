@@ -1,0 +1,123 @@
+---
+import type { MarkdownHeading } from 'astro';
+
+interface Props {
+  headings: MarkdownHeading[];
+  variant?: 'desktop' | 'mobile';
+}
+
+const { headings, variant = 'desktop' } = Astro.props;
+const tocHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+---
+
+{
+  tocHeadings.length > 0 && variant === 'desktop' && (
+    <nav aria-label="Table of contents" class="toc-nav">
+      <h2 class="mb-3 font-mono text-[11px] font-semibold tracking-wider uppercase text-[var(--text-muted)]">
+        On This Page
+      </h2>
+      <ul class="max-h-[46vh] space-y-1 overflow-y-auto pr-2 border-l border-[var(--border-subtle)]">
+        {tocHeadings.map((heading) => (
+          <li>
+            <a
+              href={`#${heading.slug}`}
+              data-toc-link={heading.slug}
+              class:list={[
+                'toc-link block border-l-2 border-transparent py-1 text-[13px] leading-snug text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] -ml-[1px]',
+                heading.depth === 2 ? 'pl-3 font-medium' : 'pl-6 text-[12px] text-[var(--text-muted)]',
+              ]}
+            >
+              {heading.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+{
+  tocHeadings.length > 0 && variant === 'mobile' && (
+    <details class="mb-8 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] lg:hidden">
+      <summary class="flex cursor-pointer items-center justify-between px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)] select-none">
+        <span>Table of Contents ({tocHeadings.length})</span>
+        <svg
+          class="h-4 w-4 text-[var(--text-muted)]"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <ul class="space-y-1 border-t border-[var(--border-subtle)] px-4 py-3">
+        {tocHeadings.map((heading) => (
+          <li>
+            <a
+              href={`#${heading.slug}`}
+              class:list={[
+                'block py-1 text-sm text-[var(--text-secondary)] hover:text-[var(--accent-primary)]',
+                heading.depth === 3 ? 'pl-4 text-xs text-[var(--text-muted)]' : 'font-medium',
+              ]}
+            >
+              {heading.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
+<style>
+  .toc-link.is-active {
+    border-left-color: var(--accent-primary);
+    color: var(--accent-primary);
+    font-weight: 600;
+  }
+</style>
+
+<script>
+  function initScrollSpy() {
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
+    if (!links.length) return;
+
+    const headingIds = links.map((l) => l.dataset.tocLink!).filter(Boolean);
+    const headings = headingIds
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => Boolean(el));
+
+    if (!headings.length) return;
+
+    const setActive = (id: string) => {
+      links.forEach((link) => {
+        const active = link.dataset.tocLink === id;
+        link.classList.toggle('is-active', active);
+        if (active) {
+          link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) {
+          setActive(visible[0].target.id);
+        }
+      },
+      {
+        rootMargin: '-80px 0px -65% 0px',
+        threshold: 0,
+      }
+    );
+
+    headings.forEach((h) => observer.observe(h));
+    setActive(headings[0].id);
+  }
+
+  initScrollSpy();
+</script>

@@ -1,0 +1,529 @@
+---
+interface Props {
+  mode?: 'full' | 'local';
+  focusSlug?: string;
+}
+
+const { mode = 'full', focusSlug = '' } = Astro.props;
+const isLocal = mode === 'local';
+---
+
+<div
+  class:list={[
+    'knowledge-graph-root relative overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-surface)] graph-dot-grid',
+    isLocal ? 'rounded-xl' : 'rounded-2xl shadow-[var(--shadow-card)]',
+  ]}
+  data-graph-mode={mode}
+  data-focus-slug={focusSlug}
+>
+  {
+    isLocal ? (
+      <div class="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2">
+        <span class="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+          <span class="h-1.5 w-1.5 rounded-full bg-[var(--accent-primary)]" />
+          Connected Graph
+        </span>
+        <a
+          href="/graph"
+          title="Open full-screen Knowledge Graph Explorer"
+          class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-muted)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-primary)]"
+        >
+          Explore ⤢
+        </a>
+      </div>
+    ) : (
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)]/90 px-4 py-3 backdrop-blur-sm">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative">
+            <input
+              type="search"
+              data-graph-search
+              placeholder="Filter or highlight node..."
+              class="h-8 w-52 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-primary)] focus:outline-none sm:w-64"
+            />
+          </div>
+          <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-xs text-[var(--text-secondary)] select-none">
+            <input type="checkbox" data-graph-toggle-tags checked class="accent-[var(--accent-primary)]" />
+            Tags
+          </label>
+          <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5 text-xs text-[var(--text-secondary)] select-none">
+            <input type="checkbox" data-graph-toggle-categories checked class="accent-[var(--accent-gold)]" />
+            Categories
+          </label>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="hidden items-center gap-3 font-mono text-[11px] text-[var(--text-muted)] md:flex">
+            <span class="inline-flex items-center gap-1.5">
+              <span class="h-2.5 w-2.5 rounded-full bg-[#f06449]" /> Article
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="h-2.5 w-2.5 rounded-full bg-[#f5a623]" /> Category
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="h-2.5 w-2.5 rounded-full border border-[#867a90] bg-[#2a1f33]" /> Topic
+            </span>
+          </div>
+          <button
+            type="button"
+            data-graph-reset
+            class="h-8 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 font-mono text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] cursor-pointer"
+          >
+            Reset View
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  <div class:list={['relative w-full', isLocal ? 'h-[210px]' : 'h-[68vh] min-h-[480px]']}>
+    <canvas data-graph-canvas class="block h-full w-full cursor-grab active:cursor-grabbing"></canvas>
+
+    <!-- Floating Hover Preview Card (Full Mode) -->
+    {
+      !isLocal && (
+        <div
+          data-graph-tooltip
+          class="pointer-events-none absolute bottom-4 left-4 z-10 hidden max-w-sm rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)]/95 p-4 shadow-xl backdrop-blur-md"
+        >
+          <div class="flex items-center gap-2">
+            <span
+              data-tooltip-badge
+              class="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase text-[var(--accent-primary)]"
+            />
+            <span data-tooltip-meta class="font-mono text-[10px] text-[var(--text-muted)]" />
+          </div>
+          <h3
+            data-tooltip-title
+            class="mt-2 font-['Plus_Jakarta_Sans'] text-sm font-bold text-[var(--text-primary)]"
+          />
+          <p data-tooltip-desc class="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]" />
+          <p class="mt-2 font-mono text-[10px] text-[var(--accent-primary)]">Click node to open →</p>
+        </div>
+      )
+    }
+  </div>
+</div>
+
+<script>
+  import {
+    forceSimulation,
+    forceLink,
+    forceManyBody,
+    forceCenter,
+    forceCollide,
+    type SimulationNodeDatum,
+    type SimulationLinkDatum,
+  } from 'd3-force';
+  import { select } from 'd3-selection';
+  import { zoom, zoomIdentity, type ZoomTransform } from 'd3-zoom';
+  import { drag } from 'd3-drag';
+
+  interface RawNode {
+    id: string;
+    type: 'article' | 'category' | 'tag';
+    label: string;
+    url: string;
+    description?: string;
+    category?: string;
+    readingTime?: string;
+    diagramCount?: number;
+    date?: string;
+    degree: number;
+  }
+
+  interface SimNode extends RawNode, SimulationNodeDatum {}
+  interface SimLink extends SimulationLinkDatum<SimNode> {
+    source: string | SimNode;
+    target: string | SimNode;
+    type: 'category' | 'tag' | 'related';
+  }
+
+  function getPalette() {
+    const isDark = (document.documentElement.getAttribute('data-theme') || 'dark') === 'dark';
+    return isDark
+      ? {
+          article: '#f06449',
+          articleGlow: 'rgba(240, 100, 73, 0.35)',
+          category: '#f5a623',
+          categoryGlow: 'rgba(245, 166, 35, 0.28)',
+          tagFill: '#271d30',
+          tagStroke: '#8d7a9e',
+          edgeDefault: 'rgba(184, 173, 192, 0.22)',
+          edgeHighlight: 'rgba(240, 100, 73, 0.85)',
+          label: '#f4eff6',
+          labelMuted: '#9e91a8',
+        }
+      : {
+          article: '#d94a2e',
+          articleGlow: 'rgba(217, 74, 46, 0.22)',
+          category: '#c77d0a',
+          categoryGlow: 'rgba(199, 125, 10, 0.2)',
+          tagFill: '#f3efea',
+          tagStroke: '#8a7e94',
+          edgeDefault: 'rgba(82, 73, 90, 0.20)',
+          edgeHighlight: 'rgba(217, 74, 46, 0.85)',
+          label: '#1a1520',
+          labelMuted: '#63596d',
+        };
+  }
+
+  async function initKnowledgeGraphs() {
+    const roots = document.querySelectorAll<HTMLElement>('.knowledge-graph-root');
+    if (!roots.length) return;
+
+    let graphData: { nodes: RawNode[]; links: { source: string; target: string; type: 'category' | 'tag' | 'related' }[] };
+    try {
+      const res = await fetch('/graph.json');
+      graphData = await res.json();
+    } catch (err) {
+      console.error('Failed to load /graph.json:', err);
+      return;
+    }
+
+    roots.forEach((root) => {
+      const mode = root.dataset.graphMode || 'full';
+      const isLocal = mode === 'local';
+      const focusSlug = root.dataset.focusSlug || '';
+      const focusId = focusSlug ? `article:${focusSlug}` : '';
+
+      const canvas = root.querySelector<HTMLCanvasElement>('[data-graph-canvas]');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const searchInput = root.querySelector<HTMLInputElement>('[data-graph-search]');
+      const toggleTags = root.querySelector<HTMLInputElement>('[data-graph-toggle-tags]');
+      const toggleCats = root.querySelector<HTMLInputElement>('[data-graph-toggle-categories]');
+      const resetBtn = root.querySelector<HTMLButtonElement>('[data-graph-reset]');
+
+      const tooltip = root.querySelector<HTMLElement>('[data-graph-tooltip]');
+      const tipBadge = root.querySelector<HTMLElement>('[data-tooltip-badge]');
+      const tipMeta = root.querySelector<HTMLElement>('[data-tooltip-meta]');
+      const tipTitle = root.querySelector<HTMLElement>('[data-tooltip-title]');
+      const tipDesc = root.querySelector<HTMLElement>('[data-tooltip-desc]');
+
+      let width = canvas.parentElement?.clientWidth || 600;
+      let height = canvas.parentElement?.clientHeight || 400;
+      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let palette = getPalette();
+      let transform: ZoomTransform = zoomIdentity;
+      let hoveredNode: SimNode | null = null;
+      let searchQuery = '';
+
+      let nodes: SimNode[] = [];
+      let links: SimLink[] = [];
+      let adjacency = new Map<string, Set<string>>();
+
+      const getNodeRadius = (n: SimNode) => {
+        if (n.type === 'article') return isLocal ? 9 : Math.min(16, 10 + n.degree * 0.6);
+        if (n.type === 'category') return isLocal ? 7 : Math.min(13, 8 + n.degree * 0.5);
+        return isLocal ? 5 : Math.min(9, 5.5 + n.degree * 0.35);
+      };
+
+      const buildFilteredGraph = () => {
+        const showTags = isLocal ? true : Boolean(toggleTags?.checked ?? true);
+        const showCats = isLocal ? true : Boolean(toggleCats?.checked ?? true);
+
+        let allowedIds: Set<string> | null = null;
+        if (isLocal && focusId) {
+          allowedIds = new Set<string>([focusId]);
+          for (const l of graphData.links) {
+            if (l.source === focusId) allowedIds.add(l.target);
+            if (l.target === focusId) allowedIds.add(l.source);
+          }
+        }
+
+        const filteredNodes = graphData.nodes.filter((n) => {
+          if (allowedIds && !allowedIds.has(n.id)) return false;
+          if (!showTags && n.type === 'tag') return false;
+          if (!showCats && n.type === 'category') return false;
+          return true;
+        });
+
+        const kept = new Set(filteredNodes.map((n) => n.id));
+        const filteredLinks = graphData.links
+          .filter((l) => kept.has(l.source) && kept.has(l.target))
+          .map((l) => ({ ...l }));
+
+        nodes = filteredNodes.map((n) => ({ ...n }));
+        links = filteredLinks;
+
+        adjacency = new Map();
+        for (const n of nodes) adjacency.set(n.id, new Set([n.id]));
+        for (const l of links) {
+          const s = typeof l.source === 'string' ? l.source : l.source.id;
+          const t = typeof l.target === 'string' ? l.target : l.target.id;
+          adjacency.get(s)?.add(t);
+          adjacency.get(t)?.add(s);
+        }
+      };
+
+      const resizeCanvas = () => {
+        width = canvas.parentElement?.clientWidth || 600;
+        height = canvas.parentElement?.clientHeight || 400;
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+      };
+
+      buildFilteredGraph();
+      resizeCanvas();
+
+      const simulation = forceSimulation<SimNode>(nodes)
+        .force(
+          'link',
+          forceLink<SimNode, SimLink>(links)
+            .id((d) => d.id)
+            .distance((d) => (isLocal ? 68 : d.type === 'related' ? 120 : 95))
+        )
+        .force('charge', forceManyBody().strength(isLocal ? -190 : -340))
+        .force('center', forceCenter(width / 2, height / 2))
+        .force(
+          'collide',
+          forceCollide<SimNode>().radius((d) => getNodeRadius(d) + (isLocal ? 14 : 24))
+        );
+
+      const draw = () => {
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(dpr, dpr);
+        ctx.translate(transform.x, transform.y);
+        ctx.scale(transform.k, transform.k);
+
+        const activeId = hoveredNode?.id || '';
+        const neighbors = activeId ? adjacency.get(activeId) : null;
+        const q = searchQuery.toLowerCase();
+
+        // Draw edges
+        for (const link of links) {
+          const s = link.source as SimNode;
+          const t = link.target as SimNode;
+          if (s.x === undefined || s.y === undefined || t.x === undefined || t.y === undefined) continue;
+
+          const isConnected = activeId && (s.id === activeId || t.id === activeId);
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(t.x, t.y);
+          ctx.strokeStyle = isConnected ? palette.edgeHighlight : palette.edgeDefault;
+          ctx.lineWidth = isConnected ? 1.8 / transform.k : 1.0 / transform.k;
+          ctx.globalAlpha = activeId && !isConnected ? 0.16 : 1;
+          ctx.stroke();
+        }
+
+        // Draw nodes
+        for (const node of nodes) {
+          if (node.x === undefined || node.y === undefined) continue;
+          const r = getNodeRadius(node);
+          const isMatch = q ? node.label.toLowerCase().includes(q) : true;
+          const isHighlighted = !activeId || neighbors?.has(node.id);
+          const isCurrentFocus = focusId && node.id === focusId;
+
+          ctx.globalAlpha = isHighlighted && isMatch ? 1 : 0.18;
+
+          // Subtle glow for articles, categories, or hovered node
+          if (node.type === 'article' || node.type === 'category' || node.id === activeId || isCurrentFocus) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, r + (node.id === activeId ? 7 : 5), 0, Math.PI * 2);
+            ctx.fillStyle = node.type === 'category' ? palette.categoryGlow : palette.articleGlow;
+            ctx.fill();
+          }
+
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+
+          if (node.type === 'article') {
+            ctx.fillStyle = palette.article;
+            ctx.fill();
+          } else if (node.type === 'category') {
+            ctx.fillStyle = palette.category;
+            ctx.fill();
+          } else {
+            ctx.fillStyle = palette.tagFill;
+            ctx.fill();
+            ctx.lineWidth = 1.5 / transform.k;
+            ctx.strokeStyle = node.id === activeId ? palette.article : palette.tagStroke;
+            ctx.stroke();
+          }
+
+          // Labels
+          const showLabel =
+            !isLocal ||
+            node.type !== 'tag' ||
+            node.id === activeId ||
+            nodes.length <= 12 ||
+            transform.k > 1.15;
+
+          if (showLabel) {
+            const fontSize = Math.max(9.5, (node.type === 'article' ? 12 : 10.5) / Math.sqrt(transform.k));
+            ctx.font = `${node.type === 'article' ? '600' : '500'} ${fontSize}px 'Plus Jakarta Sans', 'Inter', sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = node.type === 'tag' && node.id !== activeId ? palette.labelMuted : palette.label;
+            const maxChars = isLocal ? 20 : 32;
+            const labelText =
+              node.label.length > maxChars ? node.label.slice(0, maxChars - 1) + '…' : node.label;
+            ctx.fillText(labelText, node.x, node.y + r + 5);
+          }
+        }
+
+        ctx.restore();
+      };
+
+      simulation.on('tick', draw);
+
+      const getNodeAtPoint = (clientX: number, clientY: number): SimNode | null => {
+        const rect = canvas.getBoundingClientRect();
+        const x = (clientX - rect.left - transform.x) / transform.k;
+        const y = (clientY - rect.top - transform.y) / transform.k;
+        for (let i = nodes.length - 1; i >= 0; i--) {
+          const n = nodes[i];
+          if (n.x === undefined || n.y === undefined) continue;
+          const hitR = getNodeRadius(n) + 7;
+          const dx = x - n.x;
+          const dy = y - n.y;
+          if (dx * dx + dy * dy <= hitR * hitR) return n;
+        }
+        return null;
+      };
+
+      const updateTooltip = (node: SimNode | null) => {
+        if (!tooltip || isLocal) return;
+        if (!node) {
+          tooltip.classList.add('hidden');
+          return;
+        }
+        tooltip.classList.remove('hidden');
+        if (tipBadge) tipBadge.textContent = node.type;
+        if (tipMeta) {
+          tipMeta.textContent =
+            node.type === 'article'
+              ? [node.date, node.readingTime].filter(Boolean).join(' • ')
+              : `${node.degree} connection${node.degree === 1 ? '' : 's'}`;
+        }
+        if (tipTitle) tipTitle.textContent = node.label;
+        if (tipDesc) {
+          tipDesc.textContent =
+            node.description ||
+            (node.type === 'category'
+              ? `Browse all articles in ${node.label}.`
+              : `Explore articles tagged with #${node.label}.`);
+        }
+      };
+
+      // Zoom behavior
+      const zoomBehavior = zoom<HTMLCanvasElement, unknown>()
+        .scaleExtent([0.35, 3.5])
+        .on('zoom', (event) => {
+          transform = event.transform;
+          draw();
+        });
+
+      const canvasSel = select(canvas);
+
+      // Drag behavior for individual nodes
+      let draggedNode: SimNode | null = null;
+      let didDrag = false;
+
+      const dragBehavior = drag<HTMLCanvasElement, unknown>()
+        .subject((event) => {
+          const src = event.sourceEvent as MouseEvent;
+          return getNodeAtPoint(src.clientX, src.clientY) || undefined;
+        })
+        .on('start', (event) => {
+          draggedNode = event.subject as SimNode;
+          didDrag = false;
+          if (!event.active) simulation.alphaTarget(0.25).restart();
+          if (draggedNode) {
+            draggedNode.fx = draggedNode.x;
+            draggedNode.fy = draggedNode.y;
+          }
+        })
+        .on('drag', (event) => {
+          if (!draggedNode) return;
+          didDrag = true;
+          const src = event.sourceEvent as MouseEvent;
+          const rect = canvas.getBoundingClientRect();
+          draggedNode.fx = (src.clientX - rect.left - transform.x) / transform.k;
+          draggedNode.fy = (src.clientY - rect.top - transform.y) / transform.k;
+        })
+        .on('end', (event) => {
+          if (!event.active) simulation.alphaTarget(0);
+          if (draggedNode) {
+            draggedNode.fx = null;
+            draggedNode.fy = null;
+            draggedNode = null;
+          }
+        });
+
+      canvasSel.call(dragBehavior).call(zoomBehavior);
+
+      canvas.addEventListener('mousemove', (e) => {
+        const hit = getNodeAtPoint(e.clientX, e.clientY);
+        if (hit !== hoveredNode) {
+          hoveredNode = hit;
+          canvas.style.cursor = hit ? 'pointer' : 'grab';
+          updateTooltip(hit);
+          draw();
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        hoveredNode = null;
+        updateTooltip(null);
+        draw();
+      });
+
+      canvas.addEventListener('click', (e) => {
+        if (didDrag) return;
+        const hit = getNodeAtPoint(e.clientX, e.clientY);
+        if (hit?.url) {
+          window.location.href = hit.url;
+        }
+      });
+
+      // Controls (Full Mode)
+      const rebuildSimulation = () => {
+        buildFilteredGraph();
+        simulation.nodes(nodes);
+        const linkForce = simulation.force('link') as ReturnType<typeof forceLink<SimNode, SimLink>>;
+        linkForce?.links(links);
+        simulation.alpha(0.8).restart();
+      };
+
+      toggleTags?.addEventListener('change', rebuildSimulation);
+      toggleCats?.addEventListener('change', rebuildSimulation);
+
+      searchInput?.addEventListener('input', () => {
+        searchQuery = searchInput.value.trim();
+        draw();
+      });
+
+      resetBtn?.addEventListener('click', () => {
+        canvasSel.transition?.().duration(300).call(zoomBehavior.transform, zoomIdentity);
+        transform = zoomIdentity;
+        if (searchInput) {
+          searchInput.value = '';
+          searchQuery = '';
+        }
+        simulation.alpha(0.5).restart();
+        draw();
+      });
+
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+        simulation.force('center', forceCenter(width / 2, height / 2));
+        simulation.alpha(0.3).restart();
+      });
+
+      window.addEventListener('theme-change', () => {
+        palette = getPalette();
+        draw();
+      });
+    });
+  }
+
+  initKnowledgeGraphs();
+</script>

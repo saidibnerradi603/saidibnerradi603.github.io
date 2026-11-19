@@ -1,0 +1,287 @@
+---
+---
+
+<!-- Full-screen Diagram & Image Lightbox Modal -->
+<div
+  id="mermaid-lightbox"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4 backdrop-blur-sm sm:p-8"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Expanded diagram view"
+>
+  <div
+    class="relative flex h-full max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
+  >
+    <div
+      class="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-3"
+    >
+      <span id="lightbox-title" class="font-mono text-xs text-[var(--text-secondary)]">
+        Diagram View
+      </span>
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          id="lightbox-zoom-out"
+          class="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 font-mono text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] cursor-pointer"
+          title="Zoom out"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          id="lightbox-zoom-reset"
+          class="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 font-mono text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] cursor-pointer"
+          title="Reset zoom"
+        >
+          100%
+        </button>
+        <button
+          type="button"
+          id="lightbox-zoom-in"
+          class="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 font-mono text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] cursor-pointer"
+          title="Zoom in"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          id="lightbox-close"
+          class="ml-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 font-mono text-xs text-[var(--text-secondary)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] cursor-pointer"
+          title="Close (Esc)"
+        >
+          Esc ✕
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="mermaid-lightbox-stage flex flex-1 items-center justify-center overflow-auto p-6"
+      id="lightbox-stage"
+    >
+    </div>
+  </div>
+</div>
+
+<script>
+  import mermaid from 'mermaid';
+
+  function getMermaidConfig(theme: string) {
+    const isDark = theme === 'dark';
+    return {
+      startOnLoad: false,
+      securityLevel: 'loose' as const,
+      theme: 'base' as const,
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis' as const,
+        padding: 14,
+      },
+      themeVariables: isDark
+        ? {
+            darkMode: true,
+            background: '#1a131e',
+            primaryColor: '#2a1f33',
+            primaryTextColor: '#f4eff6',
+            primaryBorderColor: '#f06449',
+            secondaryColor: '#231a29',
+            secondaryTextColor: '#f4eff6',
+            secondaryBorderColor: '#43324d',
+            tertiaryColor: '#1f1726',
+            tertiaryTextColor: '#f4eff6',
+            lineColor: '#f06449',
+            textColor: '#f4eff6',
+            mainBkg: '#2a1f33',
+            nodeBorder: '#574066',
+            clusterBkg: '#16101b',
+            clusterBorder: '#43324d',
+            edgeLabelBackground: '#1a131e',
+            fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+            fontSize: '14px',
+          }
+        : {
+            darkMode: false,
+            background: '#ffffff',
+            primaryColor: '#faf4ee',
+            primaryTextColor: '#1a1520',
+            primaryBorderColor: '#d94a2e',
+            secondaryColor: '#f3efea',
+            secondaryTextColor: '#1a1520',
+            secondaryBorderColor: '#d3c9bd',
+            tertiaryColor: '#faf8f5',
+            tertiaryTextColor: '#1a1520',
+            lineColor: '#d94a2e',
+            textColor: '#1a1520',
+            mainBkg: '#faf4ee',
+            nodeBorder: '#d3c9bd',
+            clusterBkg: '#faf8f5',
+            clusterBorder: '#d3c9bd',
+            edgeLabelBackground: '#ffffff',
+            fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+            fontSize: '14px',
+          },
+    };
+  }
+
+  function decodeBase64Utf8(b64: string): string {
+    const binary = atob(b64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function fixLightNodesInDarkMode(container: HTMLElement) {
+    if (document.documentElement.getAttribute('data-theme') !== 'dark') return;
+    const nodes = container.querySelectorAll<SVGGElement>('g.node');
+    nodes.forEach((node) => {
+      const shape = node.querySelector<SVGElement>('rect, polygon, circle, ellipse, path');
+      if (!shape) return;
+      const styleAttr = (shape.getAttribute('style') || node.getAttribute('style') || '').toLowerCase();
+      const fillAttr = (shape.getAttribute('fill') || '').toLowerCase();
+      const combined = styleAttr + ' ' + fillAttr;
+      // Detect light pastel hex fills (#d.., #e.., #f..)
+      if (/fill:\s*#[def][0-9a-f]{2,5}|#[def][0-9a-f]{5}/.test(combined)) {
+        node.querySelectorAll<HTMLElement | SVGElement>('.nodeLabel, span, p, div, text').forEach((el) => {
+          el.style.color = '#1a1520';
+          el.style.fill = '#1a1520';
+        });
+      }
+    });
+  }
+
+  let renderCounter = 0;
+
+  async function renderAllMermaid() {
+    const figures = document.querySelectorAll<HTMLElement>('.mermaid-figure[data-mermaid-b64]');
+    if (!figures.length) return;
+
+    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+    mermaid.initialize(getMermaidConfig(theme));
+
+    for (const fig of figures) {
+      const b64 = fig.dataset.mermaidB64;
+      const canvas = fig.querySelector<HTMLElement>('.mermaid-canvas');
+      if (!b64 || !canvas) continue;
+
+      try {
+        const source = decodeBase64Utf8(b64);
+        renderCounter += 1;
+        const { svg } = await mermaid.render(`mermaid-svg-${renderCounter}`, source);
+        canvas.innerHTML = svg;
+        fixLightNodesInDarkMode(canvas);
+      } catch (err) {
+        console.error('Mermaid render error:', err);
+      }
+    }
+  }
+
+  function wrapProseTables() {
+    const tables = document.querySelectorAll<HTMLTableElement>('.article-prose table');
+    tables.forEach((table) => {
+      if (table.parentElement?.classList.contains('table-scroll-wrapper')) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'table-scroll-wrapper';
+      table.parentNode?.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    });
+  }
+
+  function initLightbox() {
+    const modal = document.getElementById('mermaid-lightbox');
+    const stage = document.getElementById('lightbox-stage');
+    const titleEl = document.getElementById('lightbox-title');
+    const closeBtn = document.getElementById('lightbox-close');
+    const zoomInBtn = document.getElementById('lightbox-zoom-in');
+    const zoomOutBtn = document.getElementById('lightbox-zoom-out');
+    const zoomResetBtn = document.getElementById('lightbox-zoom-reset');
+
+    if (!modal || !stage) return;
+
+    let scale = 1;
+
+    const applyScale = () => {
+      const target = stage.firstElementChild as HTMLElement | null;
+      if (target) {
+        target.style.transform = `scale(${scale})`;
+        target.style.transformOrigin = 'center center';
+        target.style.transition = 'transform 150ms ease';
+      }
+      if (zoomResetBtn) zoomResetBtn.textContent = `${Math.round(scale * 100)}%`;
+    };
+
+    const openModal = (contentHtml: string, title: string) => {
+      scale = 1;
+      stage.innerHTML = contentHtml;
+      if (titleEl) titleEl.textContent = title;
+      fixLightNodesInDarkMode(stage);
+      applyScale();
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    };
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.style.overflow = '';
+    };
+
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const expandBtn = target.closest<HTMLElement>('.mermaid-expand-btn');
+      const mermaidSvg = target.closest<SVGElement>('.mermaid-canvas svg');
+
+      if (expandBtn || mermaidSvg) {
+        const fig = target.closest<HTMLElement>('.mermaid-figure');
+        const svg = fig?.querySelector<SVGElement>('.mermaid-canvas svg');
+        const badge = fig?.querySelector<HTMLElement>('.mermaid-badge')?.textContent?.trim() || 'Diagram';
+        if (svg) {
+          const clone = svg.cloneNode(true) as SVGElement;
+          clone.style.maxWidth = 'none';
+          clone.style.width = 'auto';
+          clone.style.minWidth = 'min(760px, 85vw)';
+          openModal(clone.outerHTML, badge);
+        }
+        return;
+      }
+
+      const proseImg = target.closest<HTMLImageElement>('.article-prose img');
+      if (proseImg) {
+        openModal(
+          `<img src="${proseImg.src}" alt="${proseImg.alt || ''}" style="max-height:78vh;width:auto;border-radius:0.75rem;" />`,
+          proseImg.alt || 'Image Preview'
+        );
+      }
+    });
+
+    zoomInBtn?.addEventListener('click', () => {
+      scale = Math.min(2.5, scale + 0.25);
+      applyScale();
+    });
+
+    zoomOutBtn?.addEventListener('click', () => {
+      scale = Math.max(0.5, scale - 0.25);
+      applyScale();
+    });
+
+    zoomResetBtn?.addEventListener('click', () => {
+      scale = 1;
+      applyScale();
+    });
+
+    closeBtn?.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+    });
+  }
+
+  wrapProseTables();
+  renderAllMermaid();
+  initLightbox();
+
+  window.addEventListener('theme-change', () => {
+    renderAllMermaid();
+  });
+</script>

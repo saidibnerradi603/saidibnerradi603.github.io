@@ -1,0 +1,63 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import { getEnrichedArticles, slugifyTag, type EnrichedArticle } from '../../lib/articles';
+
+export async function getStaticPaths() {
+  const articles = await getEnrichedArticles();
+  const topicMap = new Map<string, { label: string; articles: EnrichedArticle[] }>();
+
+  const register = (label: string, article: EnrichedArticle) => {
+    const slug = slugifyTag(label);
+    const existing = topicMap.get(slug);
+    if (existing) {
+      if (!existing.articles.some((a) => a.slug === article.slug)) {
+        existing.articles.push(article);
+      }
+    } else {
+      topicMap.set(slug, { label, articles: [article] });
+    }
+  };
+
+  for (const article of articles) {
+    register(article.entry.data.category, article);
+    for (const tag of article.entry.data.tags) {
+      register(tag, article);
+    }
+  }
+
+  return Array.from(topicMap.entries()).map(([topic, data]) => ({
+    params: { topic },
+    props: { label: data.label, articles: data.articles },
+  }));
+}
+
+const { label, articles } = Astro.props;
+---
+
+<BaseLayout title={`Topic: ${label}`} description={`Articles and technical notes tagged with ${label}.`}>
+  <section class="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+    <a
+      href="/topics"
+      class="inline-flex items-center gap-1.5 font-mono text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--accent-primary)]"
+    >
+      ← All Topics
+    </a>
+
+    <div class="mt-4 border-b border-[var(--border-subtle)] pb-6">
+      <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--accent-primary)]">
+        Topic Archive
+      </span>
+      <h1 class="mt-1 font-['Plus_Jakarta_Sans'] text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
+        {label}
+      </h1>
+      <p class="mt-2 font-mono text-xs text-[var(--text-muted)]">
+        {articles.length} {articles.length === 1 ? 'article' : 'articles'}
+      </p>
+    </div>
+
+    <div class="mt-8 grid grid-cols-1 gap-5">
+      {articles.map((article) => <ArticleCard article={article} />)}
+    </div>
+  </section>
+</BaseLayout>

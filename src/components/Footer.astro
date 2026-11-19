@@ -1,0 +1,42 @@
+---
+import { SITE } from '../config/site';
+const year = new Date().getFullYear();
+---
+
+<footer class="mt-auto border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)]">
+  <div
+    class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 text-xs text-[var(--text-muted)] sm:flex-row sm:px-6 lg:px-8"
+  >
+    <div class="flex items-center gap-2">
+      <span class="font-['Plus_Jakarta_Sans'] font-bold text-[var(--text-primary)]">
+        S<span class="text-[var(--accent-primary)]">.</span>
+      </span>
+      <span>© {year} {SITE.author}. Built with Astro.</span>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-5">
+      <a href="/graph" class="transition-colors hover:text-[var(--accent-primary)]">
+        Knowledge Graph
+      </a>
+      <a href="/rss.xml" class="transition-colors hover:text-[var(--accent-primary)]">
+        RSS Feed
+      </a>
+      <a
+        href={SITE.githubUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="transition-colors hover:text-[var(--accent-primary)]"
+      >
+        GitHub
+      </a>
+      <a
+        href={SITE.portfolioUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="transition-colors hover:text-[var(--accent-primary)]"
+      >
+        Portfolio ↗
+      </a>
+    </div>
+  </div>
+</footer>

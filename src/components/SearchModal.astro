@@ -1,0 +1,152 @@
+---
+---
+
+<div
+  id="search-modal"
+  class="fixed inset-0 z-50 hidden items-start justify-center bg-black/70 px-4 pt-[12vh] backdrop-blur-sm"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Search articles"
+>
+  <div
+    class="w-full max-w-xl overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-2xl"
+  >
+    <!-- Input Bar -->
+    <div class="flex items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3.5">
+      <svg
+        class="h-4 w-4 shrink-0 text-[var(--accent-primary)]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.3-4.3"></path>
+      </svg>
+      <input
+        id="search-input"
+        type="search"
+        placeholder="Search articles, architectures, concepts (e.g. CRAG, LangGraph)..."
+        autocomplete="off"
+        class="w-full bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+      />
+      <kbd
+        class="rounded border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-muted)]"
+      >
+        ESC
+      </kbd>
+    </div>
+
+    <!-- Results -->
+    <div id="search-results" class="max-h-[55vh] overflow-y-auto p-3">
+      <p class="px-3 py-6 text-center text-xs text-[var(--text-muted)]">
+        Type to search across all published articles & notes.
+      </p>
+    </div>
+
+    <div
+      class="flex items-center justify-between border-t border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-2 font-mono text-[11px] text-[var(--text-muted)]"
+    >
+      <span>Powered by Pagefind</span>
+      <span>Press Esc to close</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modal = document.getElementById('search-modal');
+  const input = document.getElementById('search-input') as HTMLInputElement | null;
+  const resultsEl = document.getElementById('search-results');
+
+  let pagefind: any = null;
+  let loadFailed = false;
+
+  async function ensurePagefind() {
+    if (pagefind || loadFailed) return;
+    try {
+      const pfPath = '/pagefind/pagefind.js';
+      pagefind = await import(/* @vite-ignore */ pfPath);
+      await pagefind.init();
+    } catch {
+      loadFailed = true;
+    }
+  }
+
+  function openSearch() {
+    if (!modal || !input) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    input.focus();
+    ensurePagefind();
+  }
+
+  function closeSearch() {
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('[data-search-open]').forEach((btn) => {
+    btn.addEventListener('click', openSearch);
+  });
+
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) closeSearch();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (modal?.classList.contains('hidden')) openSearch();
+      else closeSearch();
+    } else if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+      closeSearch();
+    }
+  });
+
+  let debounceTimer: number | undefined;
+  input?.addEventListener('input', () => {
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(async () => {
+      if (!resultsEl || !input) return;
+      const query = input.value.trim();
+
+      if (!query) {
+        resultsEl.innerHTML =
+          '<p class="px-3 py-6 text-center text-xs text-[var(--text-muted)]">Type to search across all published articles & notes.</p>';
+        return;
+      }
+
+      await ensurePagefind();
+
+      if (loadFailed || !pagefind) {
+        resultsEl.innerHTML =
+          '<p class="px-3 py-6 text-center text-xs text-[var(--text-muted)]">Search index is generated during <code>npm run build</code>. Run a production build or preview to test full-text search.</p>';
+        return;
+      }
+
+      const search = await pagefind.search(query);
+      if (!search.results.length) {
+        resultsEl.innerHTML = `<p class="px-3 py-6 text-center text-xs text-[var(--text-muted)]">No results found for "${query.replace(/</g, '&lt;')}".</p>`;
+        return;
+      }
+
+      const items = await Promise.all(search.results.slice(0, 8).map((r: any) => r.data()));
+      resultsEl.innerHTML = items
+        .map(
+          (item: any) => `
+          <a href="${item.url}" class="block rounded-xl p-3 transition-colors hover:bg-[var(--bg-elevated)]">
+            <div class="font-['Plus_Jakarta_Sans'] text-sm font-semibold text-[var(--text-primary)]">
+              ${item.meta?.title || item.url}
+            </div>
+            <p class="mt-1 text-xs leading-relaxed text-[var(--text-secondary)] [&_mark]:rounded [&_mark]:bg-[var(--accent-soft)] [&_mark]:px-1 [&_mark]:text-[var(--accent-primary)]">
+              ${item.excerpt}
+            </p>
+          </a>`
+        )
+        .join('');
+    }, 140);
+  });
+</script>

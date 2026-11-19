@@ -1,0 +1,35 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import KnowledgeGraph from '../components/KnowledgeGraph.astro';
+---
+
+<BaseLayout
+  title="Knowledge Graph Explorer"
+  description="Interactive force-directed graph of connected technical articles, categories, and AI/CS concepts."
+>
+  <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <div>
+        <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--accent-primary)]">
+          Interactive Explorer
+        </span>
+        <h1 class="mt-1 font-['Plus_Jakarta_Sans'] text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
+          Knowledge Graph
+        </h1>
+        <p class="mt-2 max-w-2xl text-sm text-[var(--text-secondary)]">
+          Every article, category, and technical concept is wired into an interactive constellation.
+          Drag nodes to rearrange, scroll to zoom, hover to illuminate connections, and click any node to dive in.
+        </p>
+      </div>
+
+      <a
+        href="/"
+        class="inline-flex shrink-0 items-center gap-1.5 font-mono text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--accent-primary)]"
+      >
+        ← Back to Articles
+      </a>
+    </div>
+
+    <KnowledgeGraph mode="full" />
+  </section>
+</BaseLayout>

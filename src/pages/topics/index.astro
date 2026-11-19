@@ -1,0 +1,75 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getEnrichedArticles, slugifyTag } from '../../lib/articles';
+
+const articles = await getEnrichedArticles();
+
+const categoryCounts = new Map<string, number>();
+const tagCounts = new Map<string, number>();
+
+for (const { entry } of articles) {
+  categoryCounts.set(entry.data.category, (categoryCounts.get(entry.data.category) || 0) + 1);
+  for (const tag of entry.data.tags) {
+    tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+  }
+}
+
+const categories = Array.from(categoryCounts.entries()).sort((a, b) => b[1] - a[1]);
+const tags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1]);
+---
+
+<BaseLayout title="Topics" description="Browse all categories and technical topics covered in Said's Notes.">
+  <section class="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+    <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--accent-primary)]">
+      Taxonomy
+    </span>
+    <h1 class="mt-1 font-['Plus_Jakarta_Sans'] text-3xl font-extrabold tracking-tight text-[var(--text-primary)]">
+      Topics &amp; Tags
+    </h1>
+    <p class="mt-2 text-sm text-[var(--text-secondary)]">
+      Browse articles by primary discipline or jump into a specific technical concept.
+    </p>
+
+    <div class="mt-10">
+      <h2 class="font-mono text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        Categories
+      </h2>
+      <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {
+          categories.map(([name, count]) => (
+            <a
+              href={`/topics/${slugifyTag(name)}`}
+              class="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-4 transition-colors hover:border-[var(--accent-primary)]"
+            >
+              <span class="font-['Plus_Jakarta_Sans'] text-base font-bold text-[var(--text-primary)]">
+                {name}
+              </span>
+              <span class="rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 font-mono text-xs font-semibold text-[var(--accent-primary)]">
+                {count}
+              </span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="mt-10">
+      <h2 class="font-mono text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        Tags
+      </h2>
+      <div class="mt-4 flex flex-wrap gap-2">
+        {
+          tags.map(([tag, count]) => (
+            <a
+              href={`/topics/${slugifyTag(tag)}`}
+              class="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3.5 py-2 font-mono text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+            >
+              <span>#{tag}</span>
+              <span class="text-[var(--text-muted)]">({count})</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</BaseLayout>

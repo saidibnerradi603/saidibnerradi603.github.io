@@ -1,0 +1,170 @@
+---
+import type { MarkdownHeading } from 'astro';
+import BaseLayout from './BaseLayout.astro';
+import ReadingProgress from '../components/ReadingProgress.astro';
+import TableOfContents from '../components/TableOfContents.astro';
+import KnowledgeGraph from '../components/KnowledgeGraph.astro';
+import MermaidInit from '../components/MermaidInit.astro';
+import AuthorCard from '../components/AuthorCard.astro';
+import { formatDate, slugifyTag, type ArticleEntry } from '../lib/articles';
+
+interface Props {
+  article: ArticleEntry;
+  headings: MarkdownHeading[];
+  readingTime: string;
+  wordCount: number;
+  diagramCount: number;
+}
+
+const { article, headings, readingTime, wordCount, diagramCount } = Astro.props;
+const {
+  title,
+  description,
+  publishedAt,
+  updatedAt,
+  category,
+  tags,
+  companionUrl,
+  companionLabel,
+} = article.data;
+---
+
+<BaseLayout title={title} description={description} ogType="article" publishedAt={publishedAt}>
+  <ReadingProgress />
+
+  <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+    <!-- Back link -->
+    <div class="mb-8">
+      <a
+        href="/"
+        class="inline-flex items-center gap-1.5 font-mono text-xs text-[var(--text-muted)] transition-colors hover:text-[var(--accent-primary)]"
+      >
+        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m15 18-6-6 6-6"></path>
+        </svg>
+        Back to all articles
+      </a>
+    </div>
+
+    <div class="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_268px] xl:gap-14">
+      <!-- Center Reading Column -->
+      <article class="min-w-0 max-w-[74ch]" data-pagefind-body>
+        <!-- Editorial Header -->
+        <header class="mb-9 border-b border-[var(--border-subtle)] pb-8">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <a
+              href={`/topics/${slugifyTag(category)}`}
+              class="rounded-full bg-[var(--accent-soft)] px-3 py-1 font-mono text-[11px] font-semibold text-[var(--accent-primary)] transition-colors hover:bg-[var(--accent-primary)] hover:text-white"
+            >
+              {category}
+            </a>
+            <span class="text-[var(--text-muted)]">•</span>
+            <time datetime={publishedAt.toISOString()} class="font-mono text-[11px] text-[var(--text-muted)]">
+              {formatDate(publishedAt)}
+            </time>
+            {
+              updatedAt && (
+                <>
+                  <span class="text-[var(--text-muted)]">•</span>
+                  <span class="font-mono text-[11px] text-[var(--text-muted)]">
+                    Updated {formatDate(updatedAt)}
+                  </span>
+                </>
+              )
+            }
+            <span class="text-[var(--text-muted)]">•</span>
+            <span class="font-mono text-[11px] text-[var(--text-muted)]">{readingTime}</span>
+            {
+              wordCount > 0 && (
+                <>
+                  <span class="hidden text-[var(--text-muted)] sm:inline">•</span>
+                  <span class="hidden font-mono text-[11px] text-[var(--text-muted)] sm:inline">
+                    {wordCount.toLocaleString()} words
+                  </span>
+                </>
+              )
+            }
+            {
+              diagramCount > 0 && (
+                <>
+                  <span class="text-[var(--text-muted)]">•</span>
+                  <span class="font-mono text-[11px] text-[var(--accent-gold)]">
+                    {diagramCount} Diagrams
+                  </span>
+                </>
+              )
+            }
+          </div>
+
+          <h1
+            class="mt-4 font-['Plus_Jakarta_Sans'] text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl lg:text-[2.55rem] lg:leading-[1.15]"
+          >
+            {title}
+          </h1>
+
+          <p class="mt-4 text-lg leading-relaxed text-[var(--text-secondary)]">
+            {description}
+          </p>
+
+          <!-- Tags & Companion Link -->
+          <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap gap-1.5">
+              {
+                tags.map((tag) => (
+                  <a
+                    href={`/topics/${slugifyTag(tag)}`}
+                    class="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)]"
+                  >
+                    #{tag}
+                  </a>
+                ))
+              }
+            </div>
+
+            {
+              companionUrl && (
+                <a
+                  href={companionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent-primary)]/40 bg-[var(--accent-soft)] px-3 py-1.5 font-mono text-xs font-medium text-[var(--accent-primary)] transition-colors hover:bg-[var(--accent-primary)] hover:text-white"
+                >
+                  {companionLabel || 'Companion Code'} ↗
+                </a>
+              )
+            }
+          </div>
+        </header>
+
+        <!-- Mobile Collapsible TOC -->
+        <TableOfContents headings={headings} variant="mobile" />
+
+        <!-- Rendered Markdown Prose -->
+        <div class="article-prose">
+          <slot />
+        </div>
+
+        <!-- Author Bio Footer -->
+        <AuthorCard />
+      </article>
+
+      <!-- Right Sticky Rail: TOC + Local Connected Graph -->
+      <aside class="hidden lg:block" data-pagefind-ignore>
+        <div class="sticky top-24 space-y-6">
+          <TableOfContents headings={headings} variant="desktop" />
+          <KnowledgeGraph mode="local" focusSlug={article.id} />
+
+          <button
+            type="button"
+            onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
+            class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] py-2 font-mono text-[11px] text-[var(--text-muted)] transition-colors hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] cursor-pointer"
+          >
+            ↑ Back to top
+          </button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <MermaidInit />
+</BaseLayout>

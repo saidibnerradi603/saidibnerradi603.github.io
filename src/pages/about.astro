@@ -1,0 +1,54 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../config/site';
+---
+
+<BaseLayout title="About" description={`About ${SITE.author} and ${SITE.name}.`}>
+  <section class="mx-auto max-w-3xl px-4 py-14 sm:px-6 lg:px-8">
+    <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--accent-primary)]">
+      About This Publication
+    </span>
+    <h1 class="mt-2 font-['Plus_Jakarta_Sans'] text-3xl font-extrabold tracking-tight text-[var(--text-primary)] sm:text-4xl">
+      Writing to understand, sharing to build better systems.
+    </h1>
+
+    <div class="article-prose mt-8">
+      <p>
+        Hi, I'm <strong>{SITE.author}</strong> — an <strong>{SITE.role}</strong> based in {SITE.location}.
+        This site is my dedicated engineering notebook for long-form technical guides, architecture breakdowns,
+        and visual deep dives into <strong>Generative AI</strong>, <strong>Agentic RAG</strong>,
+        <strong>Multi-Agent Systems</strong>, <strong>Backend Engineering</strong>, and <strong>Computer Science</strong>.
+      </p>
+
+      <p>
+        Every article here is authored in Markdown with architecture diagrams, real-world trade-offs, and
+        connected concepts you can explore visually through the <a href="/graph">Interactive Knowledge Graph</a>.
+      </p>
+
+      <h2>Looking for my Projects, Experience &amp; Resume?</h2>
+      <p>
+        This site focuses purely on writing and technical notes. For my full portfolio, featured projects,
+        certifications, and interactive AI assistant, visit my main portfolio website:
+      </p>
+    </div>
+
+    <div class="mt-8 flex flex-wrap gap-3">
+      <a
+        href={SITE.portfolioUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 rounded-xl bg-[var(--accent-primary)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+      >
+        Visit Portfolio (saidibnerradi.netlify.app) ↗
+      </a>
+      <a
+        href={SITE.githubUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-5 py-2.5 text-sm font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--accent-primary)]"
+      >
+        GitHub Profile ↗
+      </a>
+    </div>
+  </section>
+</BaseLayout>
